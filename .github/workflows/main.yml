@@ -25,13 +25,13 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
 
       - name: Extract zip archives if present
         run: |
+          mkdir -p extracted_project
           find . -type f -name "*.zip" | while read -r zipfile; do
-            echo "Extracting $zipfile..."
-            unzip -o "$zipfile" -d "$(dirname "$zipfile")"
+            echo "Extracting: $zipfile"
+            unzip -o "$zipfile" -d extracted_project
           done
 
       - name: Locate Flutter project root
@@ -39,33 +39,32 @@ jobs:
         run: |
           PUBSPEC_PATH=$(find . -name "pubspec.yaml" | head -n 1)
           if [ -z "$PUBSPEC_PATH" ]; then
-            echo "❌ Error: pubspec.yaml not found anywhere in the repository!"
-            echo "📂 Current files in repository:"
-            find . -maxdepth 4 -not -path '*/.git*'
+            echo "Error: pubspec.yaml not found anywhere in the repository!"
+            echo "Current files in repository:"
+            find . -maxdepth 4
             exit 1
           fi
           PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
-          echo "✅ Found Flutter project at: $PROJECT_DIR"
-          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "Found Flutter project at: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
 
       - name: Generate missing Android scaffolding
-        working-directory: ${{ steps.locate.outputs.project_dir }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           if [ ! -d "android" ]; then
-            echo "Android folder missing. Generating Android files..."
-            flutter create . --platforms=android
+            flutter create --platforms=android .
           fi
 
       - name: Install dependencies
-        working-directory: ${{ steps.locate.outputs.project_dir }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
       - name: Build APK
-        working-directory: ${{ steps.locate.outputs.project_dir }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: ${{ steps.locate.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
