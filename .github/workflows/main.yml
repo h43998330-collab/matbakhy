@@ -1,5 +1,3 @@
-أكيد، إليك تعديل جاهز لملف main.yml يطابق خطوات الـ Workflow الموجودة في الصور (Extract zip archives if present، Locate Flutter project root، Generate missing Android scaffolding، Install dependencies، Build APK، Upload APK artifact)، مع إضافة فك الضغط المتداخل لأي ملفات .zip والبحث عن pubspec.yaml بعد فك الضغط بالكامل:
-```yaml
 name: Build Flutter App
 
 on:
@@ -29,9 +27,7 @@ jobs:
       - name: Extract zip archives if present
         run: |
           mkdir -p ./extracted_project
-          # فك ملفات zip الأساسية أولاً
           find . -maxdepth 2 -name "*.zip" -exec unzip -o "{}" -d ./extracted_project \;
-          # فك أي ملفات zip متداخلة داخل المجلد المستخرج
           while find ./extracted_project -name "*.zip" | grep -q .; do
             find ./extracted_project -name "*.zip" | while read zip_file; do
               target_dir="${zip_file%.zip}_unzipped"
@@ -74,9 +70,3 @@ jobs:
         with:
           name: app-release
           path: ${{ env.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
-
-```
-### ملاحظات سريعة:
- * خطوة **Extract zip archives if present** بتفك أي ملف .zip حتى لو كان جوه ملف مضغوط تاني (زي matbakhy_merged (3).zip).
- * خطوة **Locate Flutter project root** بتحدد مسار مجلد المشروع اللي فيه pubspec.yaml وتخزنه في متغير PROJECT_ROOT عشان باقي الأوامر تشتغل جواه مباشرة.
- * لو ظهر خطأ أثناء flutter build apk بعد ما يلاقي pubspec.yaml، ابعتلي لوج الخطوة دي وهنحلها سوا.
