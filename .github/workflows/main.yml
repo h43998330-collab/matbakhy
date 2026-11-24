@@ -59,6 +59,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd "$PROJECT_ROOT"
+          flutter pub upgrade google_mobile_ads || true
           flutter pub get
 
       - name: Build APK
