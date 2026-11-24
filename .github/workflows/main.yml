@@ -1,5 +1,4 @@
-بكل تأكيد، إليك الكود الكامل لملف .github/workflows/main.yml بعد إزالة أي نص غير صالح في البداية، والإبقاء على خطوات فك الضغط وتحديد مسار المشروع، وإضافة تحديث نسخة Gradle تلقائياً قبل بناء الـ APK:
-```yaml
+
 name: Build Flutter App
 
 on:
@@ -76,6 +75,3 @@ jobs:
         with:
           name: app-release
           path: ${{ env.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
-
-```
-انسخ الكود مباشرة من السطر الأول (name: Build Flutter App) وضعه في .github/workflows/main.yml ثم جرّب التشغيل.
