@@ -1,10 +1,10 @@
+أكيد، إليك تعديل جاهز لملف main.yml يطابق خطوات الـ Workflow الموجودة في الصور (Extract zip archives if present، Locate Flutter project root، Generate missing Android scaffolding، Install dependencies، Build APK، Upload APK artifact)، مع إضافة فك الضغط المتداخل لأي ملفات .zip والبحث عن pubspec.yaml بعد فك الضغط بالكامل:
+```yaml
 name: Build Flutter App
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -28,43 +28,55 @@ jobs:
 
       - name: Extract zip archives if present
         run: |
-          mkdir -p extracted_project
-          find . -type f -name "*.zip" | while read -r zipfile; do
-            echo "Extracting: $zipfile"
-            unzip -o "$zipfile" -d extracted_project
+          mkdir -p ./extracted_project
+          # فك ملفات zip الأساسية أولاً
+          find . -maxdepth 2 -name "*.zip" -exec unzip -o "{}" -d ./extracted_project \;
+          # فك أي ملفات zip متداخلة داخل المجلد المستخرج
+          while find ./extracted_project -name "*.zip" | grep -q .; do
+            find ./extracted_project -name "*.zip" | while read zip_file; do
+              target_dir="${zip_file%.zip}_unzipped"
+              unzip -o "$zip_file" -d "$target_dir"
+              rm -f "$zip_file"
+            done
           done
 
       - name: Locate Flutter project root
-        id: locate
         run: |
-          PUBSPEC_PATH=$(find . -name "pubspec.yaml" | head -n 1)
+          PUBSPEC_PATH=$(find . -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
           if [ -z "$PUBSPEC_PATH" ]; then
             echo "Error: pubspec.yaml not found anywhere in the repository!"
-            echo "Current files in repository:"
             find . -maxdepth 4
             exit 1
           fi
-          PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
-          echo "Found Flutter project at: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          PROJECT_ROOT=$(dirname "$PUBSPEC_PATH")
+          echo "Found Flutter project at: $PROJECT_ROOT"
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> $GITHUB_ENV
 
       - name: Generate missing Android scaffolding
-        working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          cd "$PROJECT_ROOT"
           if [ ! -d "android" ]; then
             flutter create --platforms=android .
           fi
 
       - name: Install dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter pub get
+        run: |
+          cd "$PROJECT_ROOT"
+          flutter pub get
 
       - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter build apk --release
+        run: |
+          cd "$PROJECT_ROOT"
+          flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          name: app-release
+          path: ${{ env.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
+
+```
+### ملاحظات سريعة:
+ * خطوة **Extract zip archives if present** بتفك أي ملف .zip حتى لو كان جوه ملف مضغوط تاني (زي matbakhy_merged (3).zip).
+ * خطوة **Locate Flutter project root** بتحدد مسار مجلد المشروع اللي فيه pubspec.yaml وتخزنه في متغير PROJECT_ROOT عشان باقي الأوامر تشتغل جواه مباشرة.
+ * لو ظهر خطأ أثناء flutter build apk بعد ما يلاقي pubspec.yaml، ابعتلي لوج الخطوة دي وهنحلها سوا.
