@@ -1,0 +1,95 @@
+name: Build Flutter App
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.7"
+          channel: "stable"
+          cache: true
+
+      - name: Extract zip archives if present
+        run: |
+          find . -maxdepth 3 -type f -name "*.zip" | while read -r zipfile; do
+            target_dir="${zipfile%.zip}"
+            mkdir -p "$target_dir"
+            unzip -q -o "$zipfile" -d "$target_dir" || true
+          done
+
+      - name: Locate Flutter project root
+        id: locate_project
+        run: |
+          PUBSPEC_PATH=$(find . -maxdepth 5 -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "pubspec.yaml not found!"
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+          echo "Found Flutter project at: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Generate missing Android scaffolding
+        working-directory: ${{ steps.locate_project.outputs.project_dir }}
+        run: |
+          flutter create --platforms=android --org com.nader --project-name cooking_app .
+          rm -f test/widget_test.dart
+
+      - name: Install dependencies
+        working-directory: ${{ steps.locate_project.outputs.project_dir }}
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        working-directory: ${{ steps.locate_project.outputs.project_dir }}
+        run: dart run flutter_launcher_icons
+
+      - name: Disable Lint Check (Fix for LintDetectorError)
+        working-directory: ${{ steps.locate_project.outputs.project_dir }}
+        run: |
+          if [ -f android/app/build.gradle ]; then
+            sed -i '/lint {/a \        abortOnError false\n        checkReleaseBuilds false' android/app/build.gradle || true
+          fi
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i '/lint {/a \        abortOnError = false\n        checkReleaseBuilds = false' android/app/build.gradle.kts || true
+          fi
+
+      - name: Prepare Gradle Wrapper
+        working-directory: ${{ steps.locate_project.outputs.project_dir }}
+        run: |
+          WRAPPER_PROP="android/gradle/wrapper/gradle-wrapper.properties"
+          if [ -f "$WRAPPER_PROP" ]; then
+            sed -i 's/gradle-[0-9.]*-all\.zip/gradle-8.11.1-all.zip/g; s/gradle-[0-9.]*-bin\.zip/gradle-8.11.1-all.zip/g' "$WRAPPER_PROP"
+          fi
+          cat "$WRAPPER_PROP" || true
+
+      - name: Prepare signing keystore
+        working-directory: ${{ steps.locate_project.outputs.project_dir }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+            SP="$KEYSTORE_PASSWORD"; KA="$KEY_ALIAS"; KP="${K
