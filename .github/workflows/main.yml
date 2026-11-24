@@ -63,6 +63,10 @@ jobs:
       - name: Build APK
         run: |
           cd "$PROJECT_ROOT"
+          WRAPPER_PROPS="android/gradle/wrapper/gradle-wrapper.properties"
+          if [ -f "$WRAPPER_PROPS" ]; then
+            sed -i 's|gradle-[0-9.]*-all\.zip|gradle-8.13-all.zip|g' "$WRAPPER_PROPS"
+          fi
           flutter build apk --release
 
       - name: Upload APK artifact
