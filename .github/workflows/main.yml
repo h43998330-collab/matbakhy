@@ -66,8 +66,12 @@ jobs:
           WRAPPER_PROPS="android/gradle/wrapper/gradle-wrapper.properties"
           if [ -f "$WRAPPER_PROPS" ]; then
             sed -i 's|^distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-9.3.1-all.zip|g' "$WRAPPER_PROPS"
-            cat "$WRAPPER_PROPS"
           fi
+          for f in android/settings.gradle android/settings.gradle.kts android/build.gradle android/build.gradle.kts; do
+            if [ -f "$f" ]; then
+              sed -i 's/8\.9\.[0-9]*/9.1.1/g' "$f"
+            fi
+          done
           flutter build apk --release
 
       - name: Upload APK artifact
