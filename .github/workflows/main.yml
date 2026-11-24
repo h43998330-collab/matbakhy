@@ -59,6 +59,15 @@ jobs:
       - name: Install dependencies
         run: |
           cd "$PROJECT_ROOT"
+          python3 -c '
+with open("pubspec.yaml", "r", encoding="utf-8") as f:
+    content = f.read()
+import re
+new_content = re.sub(r"(google_mobile_ads:\s*)[^\n]+", r"\1any", content)
+with open("pubspec.yaml", "w", encoding="utf-8") as f:
+    f.write(new_content)
+'
+          flutter pub upgrade google_mobile_ads || true
           flutter pub get
 
       - name: Build APK
@@ -73,10 +82,11 @@ jobs:
               sed -i 's/8\.9\.[0-9]*/9.1.1/g' "$f"
             fi
           done
-          # إصلاح تعارض google_mobile_ads في pub-cache إن وجد
           for gma_gradle in "$HOME"/.pub-cache/hosted/pub.dev/google_mobile_ads-*/android/build.gradle; do
             if [ -f "$gma_gradle" ]; then
-              sed -i 's/configurations\.all\b/project.configurations.all/g' "$gma_gradle"
+              echo "=== Inspecting $gma_gradle around line 54 ==="
+              nl -ba "$gma_gradle" | sed -n '48,60p'
+              sed -i 's/\.all\b/.all { true }/g' "$gma_gradle" || true
             fi
           done
           flutter build apk --release
