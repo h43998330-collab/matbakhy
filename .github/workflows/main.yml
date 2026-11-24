@@ -1,15 +1,71 @@
-      - name: Extract zip archives if present (nested too)
+name: Build Flutter App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Extract zip archives if present
         run: |
-          for pass in 1 2 3 4; do
-            found=0
-            while IFS= read -r zipfile; do
-              target_dir="${zipfile%.zip}"
-              if [ ! -d "$target_dir" ]; then
-                echo "Extracting: $zipfile"
-                mkdir -p "$target_dir"
-                unzip -q -o "$zipfile" -d "$target_dir" || true
-                found=1
-              fi
-            done < <(find . -type f -iname "*.zip" -not -path "./.git/*")
-            if [ "$found" = 0 ]; then break; fi
+          find . -type f -name "*.zip" | while read -r zipfile; do
+            echo "Extracting $zipfile..."
+            unzip -o "$zipfile" -d "$(dirname "$zipfile")"
           done
+
+      - name: Locate Flutter project root
+        id: locate
+        run: |
+          PUBSPEC_PATH=$(find . -name "pubspec.yaml" | head -n 1)
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "❌ Error: pubspec.yaml not found anywhere in the repository!"
+            echo "📂 Current files in repository:"
+            find . -maxdepth 4 -not -path '*/.git*'
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+          echo "✅ Found Flutter project at: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+
+      - name: Generate missing Android scaffolding
+        working-directory: ${{ steps.locate.outputs.project_dir }}
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Android folder missing. Generating Android files..."
+            flutter create . --platforms=android
+          fi
+
+      - name: Install dependencies
+        working-directory: ${{ steps.locate.outputs.project_dir }}
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: ${{ steps.locate.outputs.project_dir }}
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: ${{ steps.locate.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk
