@@ -59,14 +59,9 @@ jobs:
       - name: Install dependencies
         run: |
           cd "$PROJECT_ROOT"
-          python3 -c '
-with open("pubspec.yaml", "r", encoding="utf-8") as f:
-    content = f.read()
-import re
-new_content = re.sub(r"(google_mobile_ads:\s*)[^\n]+", r"\1any", content)
-with open("pubspec.yaml", "w", encoding="utf-8") as f:
-    f.write(new_content)
-'
+          if [ -f "pubspec.yaml" ]; then
+            sed -i 's/^\([[:space:]]*google_mobile_ads:\).*/\1 any/' pubspec.yaml
+          fi
           flutter pub upgrade google_mobile_ads || true
           flutter pub get
 
